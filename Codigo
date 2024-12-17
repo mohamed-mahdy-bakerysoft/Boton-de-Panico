@@ -1,0 +1,81 @@
+#include <ESP8266WiFi.h>
+#include <ESP8266HTTPClient.h>
+#include <WiFiClientSecure.h> 
+
+// Configuración de Wi-Fi
+const char* wifi = "******"; 
+const char* contrasenaRed = "******"; 
+
+// Datos de Twilio
+const String sidCuenta = "*******"; 
+const String token = "*******"; 
+
+const String numeroTwilio = "¨*******"; 
+const String numeroReceptor = "********"; 
+
+const int BUTTON_PIN = D1; 
+bool botonPresionado = false;
+
+void setup() {
+
+  Serial.begin(115200);
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+
+  Serial.println("Conectando al Wi-Fi...");
+  WiFi.begin(wifi, contrasenaRed); 
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.println("Esperando conexión...");
+  }
+  Serial.println("Conectado.");
+
+  sendSMS();
+}
+
+void loop() {
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("Reconectando al Wi-Fi...");
+    WiFi.disconnect();
+    WiFi.begin(wifi, contrasenaRed);
+    delay(5000);
+  }
+  if (digitalRead(BUTTON_PIN) == LOW) 
+    if (!botonPresionado) {  
+      botonPresionado = true;
+      Serial.println("Botón presionado, enviando SMS...");
+      sendSMS();
+    }
+  } else {
+    botonPresionado = false; 
+  }
+}
+
+void sendSMS() {
+  WiFiClientSecure client; 
+  client.setInsecure();  
+  HTTPClient http; 
+
+  String url = "https://api.twilio.com/2010-04-01/Accounts/" + String(sidCuenta) + "/Messages.json";
+
+  http.begin(client, url);
+  http.addHeader("Content-Type", "application/x-www-form-urlencoded");  
+
+  // Configurar la autenticación básica (SID + Auth Token)
+  String autenticacion = String(sidCuenta) + ":" + String(token);
+  http.setAuthorization(sidCuenta.c_str(), token.c_str());
+
+  // Mensaje
+  String mensaje = "¡Ayuda! Este es un mensaje de auxilio.";
+
+  String datosPost = "To=" + String(numeroReceptor) + "&From=" + String(numeroTwilio) + "&Body=" + mensaje;
+
+  int codigoHTTP = http.POST(datosPost); 
+
+  if (codigoHTTP >= 200 && codigoHTTP < 300) {
+    Serial.println("SMS enviado exitosamente.");
+  } else {
+    Serial.println("Error al enviar SMS. Código de error: " + String(codigoHTTP));
+  }
+  http.end();
+}
